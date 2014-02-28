@@ -1,5 +1,5 @@
 {
-  "name": "voxel-control-discrete",
+  "name": "voxel-discrete-control",
   "version": "0.0.1",
   "description": "manipulate voxel-physical objects using a queue of discrete actions",
   "main": "index.js",
@@ -8,7 +8,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+ssh://nlp.cs.byu.edu/aml/git/plf1/voxeljs/voxel-control-discrete.git"
+    "url": "http://github.com/pablofelt/voxel-discrete-control.git"
   },
   "keywords": [
     "voxeljs",
