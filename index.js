@@ -6,12 +6,11 @@ function control(opts) {
   return new DiscreteControl(opts)
 }
 
-function DiscreteControl(THREE, opts) {
+function DiscreteControl(opts) {
   Stream.call(this)
 
   opts = opts || {}
 
-  this.THREE=THREE
   this._action = 
   this._target = null
 
@@ -117,6 +116,11 @@ proto.setupAction = function(){
     return
   }
 
+  // don't act if we are falling
+  if (!this._target.resting.y){
+    return
+  }
+  
   // get action
   this._action = this._action_queue.shift()
   this.validateAction(this._action) // disallow conflicting actions
@@ -163,6 +167,10 @@ proto.setupAction = function(){
 }
 
 proto.validateAction = function(action){
+  if (action.rotate && (action.forward || action.backward || action.left || action.right || action.translateX || action.translateY || action.moveto)){
+    console.warn('action specified both rotation and movement. Arbitrarily choosing movement.')
+    action.rotate = false
+  }
   if (action.forward && action.backward){
     console.warn('action specified both forward and backward. Arbitrarily choosing forward.')
     action.backward = false
@@ -170,10 +178,6 @@ proto.validateAction = function(action){
   if (action.left && action.right){
     console.warn('action specified both left and right. Arbitrarily choosing left.')
     action.right = false
-  }
-  if (action.rotateleft && action.rotateright){
-    console.warn('action specified both rotateleft and rotateright. Arbitrarily choosing rotateleft.')
-    action.rotateright = false
   }
   if ((action.translateX || action.translateY || action.moveto) && (action.forward || action.backward || action.left || action.right)){
     console.warn('action specified both absolute (e.g., moveto) and relative (e.g., forward) movement. Arbitrarily preferring absolute movement.')
@@ -209,9 +213,13 @@ proto.getEndPosition = function(avatar, action){
   return result
 }
 
+var numdroppedactions = 0
 proto.write = function(action) {
   if (this._action_queue.length > this.max_actions){
-    console.warn("Actions in the queue exceed this.max_actions. Dropping the last one.")
+    numdroppedactions += 1
+    if (numdroppedactions % 100==0){
+      console.warn("Actions in the queue exceed this.max_actions. Dropping latest actions ("+numdroppedactions+" dropped).")
+    }
     return false
   }
   this._action_queue.push(action)
