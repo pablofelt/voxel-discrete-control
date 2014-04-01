@@ -2,14 +2,15 @@ module.exports = control
 
 var Stream = require('stream').Stream
 
-function control(opts) {
-  return new DiscreteControl(opts)
+function control(gravity,opts) {
+  return new DiscreteControl(gravity,opts)
 }
 
-function DiscreteControl(opts) {
+function DiscreteControl(gravity,opts) {
   Stream.call(this)
 
   opts = opts || {}
+  this._gravity=gravity
 
   this._action = 
   this._target = null
@@ -20,6 +21,11 @@ function DiscreteControl(opts) {
   // the largest number of action that can be queued at a time 
   // (after exceeding this limit, additional actions are dropped)
   this.max_actions = opts.maxActions || 1024
+
+  // bounds the movements of characters. 
+  // (minx,maxx,miny,maxy,minz,maxz)
+  // null indicates no bound
+  this.bounds = opts.movementBounds || {'minx':null,'maxx':null,'miny':null,'maxy':null,'minz':null,'maxz':null}
   
   this._action_queue = []
   this.buffer = []
@@ -62,9 +68,10 @@ proto.tick = function(dt) {
   // action complete
   if (elapsed >= duration){
     // end in precisely the correct state
-    target.yaw.position.set(endpos['x'],endpos['y'],endpos['z'])
+    this.setPosition(target,endpos)
     target.rotation.y = action._endrotate
     this._action = null
+    this.teardownAction(target,action)
     return
   }
 
@@ -94,11 +101,14 @@ proto.tick = function(dt) {
   }
 
   // calculate y position
-  // 
-  // TODO: modify to handle uneven landscapes
   // vertical movement is a parabolic arc wrt time
-  // (this is simple enough that we don't need/want a 
-  // full physics simulation)
+  // TODO: modify to handle uneven landscapes
+  // 
+  // Note: we don't want a full physics simulation
+  // because this plugin is meant to support deterministic, 
+  // discrete movement. We need to be able to guarantee
+  // exact timing and end position, which would be 
+  // difficult in a normal continuous physics sim
   //
   //   Derivation:
   //     y = -curvature(x-dist/2)^2 + height (+ offset)
@@ -106,6 +116,9 @@ proto.tick = function(dt) {
   //     Solving for curvature, we get curvature = height / (dist/2)^2
   curvature = height / Math.pow(duration/2,2)
   target.yaw.position.y = - curvature * Math.pow(elapsed - duration/2,2) + height + startpos['y'] 
+
+  // enforce bounds
+  this.setPosition(target,target.yaw.position)
 
 }
 
@@ -120,13 +133,13 @@ proto.setupAction = function(){
   if (!this._target.resting.y){
     return
   }
-  
+
   // get action
   this._action = this._action_queue.shift()
   this.validateAction(this._action) // disallow conflicting actions
   var action = this._action
     , target = this._target
-  
+
   // translate a moveto action into a combination of x,z translations
   if (action.moveto){
     var movetoz = action.moveto instanceof Array? action.moveto[2]: action.moveto['z']
@@ -142,14 +155,14 @@ proto.setupAction = function(){
     action.forward = -action.backward
     action.backward = false
   }
-  
+
   // translate right into -left
   if (action.right){
     action.left = -action.right
     action.right = false
   }
 
-  // default values
+  // default action values
   action.duration = action.duration || 1000
   action.height = action.height===undefined? .5: action.height 
   action.rotate = action.rotate || 0
@@ -164,7 +177,20 @@ proto.setupAction = function(){
   action._startrotate = target.rotation.y
   action._endrotate = action._startrotate + action.rotate 
   action._elapsed = 0 // accumulate time deltas here during the tick function
+
+  // turn off gravity until the action is complete
+  target.removeForce(this._gravity)
+  target.velocity.set(0,0,0)
+  target.acceleration.set(0,0,0)
 }
+
+proto.teardownAction = function(target,action){
+  // resume gravity
+  target.velocity.set(0,0,0)
+  target.acceleration.set(0,0,0)
+  target.subjectTo(this._gravity)
+}
+
 
 proto.validateAction = function(action){
   if (action.rotate && (action.forward || action.backward || action.left || action.right || action.translateX || action.translateY || action.moveto)){
@@ -195,22 +221,40 @@ proto.getEndPosition = function(avatar, action){
   if (action.forward){
     avatar.translateZ(-action.forward)
   }
-
   if (action.left){
     avatar.translateX(-action.left)
   }
-
   if (action.translateZ){
     avatar.position.z += action.translateZ
   }
-
   if (action.translateX){
     avatar.position.x += action.translateX
   }
-
   result = avatar.position.clone()
   avatar.position.copy(startpos)
   return result
+}
+
+proto.setPosition = function(target,position){
+  // enforce bounds (TODO: there's got to be a cleverer way)
+  if (position.x<this.bounds.minx){
+    target.yaw.position.x = this.bounds.minx
+  }
+  if (position.x>this.bounds.maxx){
+    target.yaw.position.x = this.bounds.maxx
+  }
+  if (position.y<this.bounds.miny){
+    target.yaw.position.y = this.bounds.miny
+  }
+  if (position.y>this.bounds.maxy){
+    target.yaw.position.y = this.bounds.maxy
+  }
+  if (position.z<this.bounds.minz){
+    target.yaw.position.z = this.bounds.minz
+  }
+  if (position.z>this.bounds.maxz){
+    target.yaw.position.z = this.bounds.maxz
+  }
 }
 
 var numdroppedactions = 0
@@ -225,12 +269,16 @@ proto.write = function(action) {
   this._action_queue.push(action)
 }
 
+// handle any final actions in the stream
 proto.end = function(action) {
   if(action) {
     this.write(action)
   }
 }
 
+
+// TODO: figure out how to change the remaining code
+// (copied from voxel-control)
 proto.createWriteRotationStream = function() {
   var action = this._action
     , stream = new Stream
