@@ -37,6 +37,10 @@ var cons = DiscreteControl
 
 proto.constructor = cons
 
+proto.setMovementBounds = function(movementBounds){
+  this.bounds = movementBounds || {}
+}
+
 proto.tick = function(dt) {
   if(!this._target) {
     return
@@ -120,6 +124,15 @@ proto.tick = function(dt) {
   // enforce bounds
   this.setPosition(target,target.yaw.position)
 
+}
+
+// cancel current action and reset all future actions
+proto.reset = function(){
+  this._action_queue = []
+  if (this._action){
+    this.teardownAction(this._target,this._action)
+    this._action = null
+  }
 }
 
 // action start
