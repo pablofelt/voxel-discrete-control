@@ -46,7 +46,10 @@ proto.setMovementBounds = function(movementBounds){
   this.bounds = movementBounds || {}
 }
 
-proto.tick = function(dt) {
+proto.tick = function(delta) {
+  // scale the tick
+  dt = delta * duration_per_tick
+
   if(!this._target) {
     return
   }
@@ -58,7 +61,7 @@ proto.tick = function(dt) {
   }
 
   // increment total elapsed time for this action
-  this._action._elapsed += (dt * duration_per_tick)
+  this._action._elapsed += dt
 
   var target = this._target
     , action = this._action 
