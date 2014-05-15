@@ -1,9 +1,13 @@
-module.exports = control
-
+// modules
 var Stream = require('stream').Stream
+var duration_per_tick = 1
 
-function control(gravity,opts) {
+module.exports = function control(gravity,opts) {
   return new DiscreteControl(gravity,opts)
+}
+
+module.exports.setGameSpeed = function(percent){
+  duration_per_tick = percent/100.0
 }
 
 function DiscreteControl(gravity,opts) {
@@ -37,6 +41,7 @@ var cons = DiscreteControl
 
 proto.constructor = cons
 
+
 proto.setMovementBounds = function(movementBounds){
   this.bounds = movementBounds || {}
 }
@@ -53,7 +58,7 @@ proto.tick = function(dt) {
   }
 
   // increment total elapsed time for this action
-  this._action._elapsed += dt
+  this._action._elapsed += (dt * duration_per_tick)
 
   var target = this._target
     , action = this._action 
