@@ -6,6 +6,10 @@ module.exports = function control(gravity,opts) {
   return new DiscreteControl(gravity,opts)
 }
 
+module.exports.getGameSpeed = function(){
+  return duration_per_tick
+}
+
 module.exports.setGameSpeed = function(percent){
   duration_per_tick = percent/100.0
 }
