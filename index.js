@@ -44,6 +44,9 @@ var cons = DiscreteControl
 
 proto.constructor = cons
 
+proto.setMovesFinishedCallback = function(callback){
+  this.empty_queue_callback = callback || function(){}
+}
 
 proto.setMovementBounds = function(movementBounds){
   this.bounds = movementBounds || {}
