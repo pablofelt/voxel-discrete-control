@@ -26,6 +26,9 @@ function DiscreteControl(gravity,opts) {
   // (after exceeding this limit, additional actions are dropped)
   this.max_actions = opts.maxActions || 1024
 
+  // a function to call whenever the queue becomes empty
+  this.empty_queue_callback = opts.movesFinishedCallback || function(){}
+
   // bounds the movements of characters. 
   // (minx,maxx,miny,maxy,minz,maxz)
   // null indicates no bound
@@ -163,8 +166,8 @@ proto.setupAction = function(){
 
   // translate a moveto action into a combination of x,z translations
   if (action.moveto){
-    var movetoz = action.moveto instanceof Array? action.moveto[2]: action.moveto['z']
-    var movetox = action.moveto instanceof Array? action.moveto[0]: action.moveto['x']
+    var movetoz = 'z' in action.moveto? action.moveto['z']: action.moveto[2]
+    var movetox = 'x' in action.moveto? action.moveto['x']: action.moveto[0]
     // z movement
     action.translateZ = movetoz - target.yaw.position['z'] 
     // x movement
@@ -210,6 +213,10 @@ proto.teardownAction = function(target,action){
   target.velocity.set(0,0,0)
   target.acceleration.set(0,0,0)
   target.subjectTo(this._gravity)
+  // signal if queue empty
+  if (this._action_queue.length==0){
+    this.empty_queue_callback()
+  }
 }
 
 
